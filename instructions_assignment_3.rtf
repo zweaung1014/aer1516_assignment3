@@ -1,0 +1,327 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2868
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fmodern\fcharset0 CourierNewPSMT;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red0\green0\blue149;\red190\green48\blue5;
+\red67\green67\blue67;\red26\green26\blue26;\red118\green0\blue2;\red52\green52\blue52;}
+{\*\expandedcolortbl;;\csgray\c0;\cspthree\c8\c0\c62300;\cspthree\c73986\c30541\c12575;
+\csgray\c33333;\csgray\c13333;\cspthree\c49815\c9026\c5508;\csgray\c26667;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f0\fs39\fsmilli19925 \cf2 AER1516: Robot Motion Planning\
+
+\fs34\fsmilli17215 Assignment #3: Autonomous Frontier-Based Exploration\
+
+\fs28\fsmilli14346 Winter 2026\
+
+\fs23\fsmilli11955 Assignment Overview\
+
+\fs19\fsmilli9963 This assignment is designed to provide experience with autonomous exploration and closed-loop decision-\
+making for robotic systems. The assignment is due on Friday, April 3, 2026 by 11:59 p.m.. The number of\
+points available are shown next to each portion of the assignment description below; there are 50 points in\
+total. You will submit Python code and a PDF report (in a 
+\f1 .tar 
+\f0 archive).\
+
+\fs23\fsmilli11955 Frontier-Based Exploration\
+
+\fs19\fsmilli9963 In Assignment #2 you implemented RRT and RRT* planners to solve single-query motion planning problems.\
+In this assignment, you will move beyond isolated planning and build a frontier-based exploration system,\
+closing the sense\'96plan\'96act loop.\
+A simulated ground robot equipped with a 360\'b0 lidar sensor is placed in an unknown 2D environment. The\
+robot maintains an occupancy grid that tracks which cells are free (explored, no obstacle), occupied (ex-\
+plored, obstacle), or unknown (not yet observed). Your task is to implement the decision-making layer that\
+autonomously drives the robot to explore the environment and maximize map coverage within a fixed time\
+budget. Figure \cf3 1 \cf2 shows a snapshot of the exploration in progress on one of the provided maps.\
+
+\fs12\fsmilli6140 Coverage: 50.5% | Time: 1.4/60s | Strategy: nearest | Step: 70\
+
+\fs9\fsmilli4605 0\
+10\
+20\
+30\
+
+\fs10\fsmilli5372 y\
+
+\fs9\fsmilli4605 40\
+50\
+60\
+70\
+0 20 40 60 80\
+
+\fs10\fsmilli5372 x\
+
+\fs19\fsmilli9963 Figure 1: Exploration in progress on the office map at 50% coverage. The robot (red circle) navigates toward\
+frontier regions (green dots with yellow star centroids) along a planned path (blue line). Gray areas are\
+unknown, white is explored free space, and black represents discovered walls.\
+1 of 5
+\fs24 \cf0 \page 
+\fs19\fsmilli9963 \cf2 AER1516: Robot Motion Planning Assignment #3: Autonomous Frontier-Based Exploration\
+The key concept here is the frontier: a free cell with at least one unknown neighbour. These frontiers represent\
+the boundary between explored and unexplored space, as illustrated in Figure \cf3 2\cf2 . By repeatedly selecting and\
+navigating to frontier regions, the robot incrementally reveals the entire map. This paradigm is widely used\
+in many real-world exploration applications, including the DARPA Subterranean Challenge
+\fs13\fsmilli6974 \cf3 1\
+
+\fs19\fsmilli9963 \cf2 .\
+
+\fs8\fsmilli4349 \cf4 Frontier cells (free + unknown neighbor)\
+
+\fs9\fsmilli4832 \cf5 Unknown\
+
+\fs8\fsmilli4349 \cf6 Occupied\
+(wall)\
+\cf7 Robot\
+\cf8 Free\
+(explored)\
+
+\fs7\fsmilli3866 \cf2 Free\
+Occupied\
+Unknown\
+Frontier\
+Robot\
+
+\fs19\fsmilli9963 Figure 2: Frontier cells are free cells adjacent to at least one unknown cell, forming the boundary between\
+explored and unexplored space. The robot navigates to these regions to incrementally reveal the map.\
+What is Provided\
+You receive a complete simulation framework so that you can focus exclusively on the exploration logic. The\
+starter code includes:\
+\'95 A 2D environment simulator with three test maps: an open room with pillars, a multi-room office, and\
+cave-like passages.\
+\'95 A raycasting-based lidar sensor model (360\'b0 field of view, 3 m range).\
+\'95 An occupancy grid mapper that maintains free, occupied, and unknown cell states.\
+\'95 A Dijkstra-based path planner with obstacle inflation, along with path validation utilities.\
+\'95 Live visualization that shows the exploration in real time.\
+\'95 A working random baseline: random frontier detection and random goal selection, fully wired into the\
+exploration loop. You can run the starter code out of the box and immediately see a robot exploring\'97just\
+very inefficiently.\
+You do not need to implement any perception, mapping, SLAM, or low-level planning infrastructure. You\
+start with a functioning (but inefficient) system and make it intelligent.\
+
+\fs11\fsmilli5978 1
+\f1\fs15\fsmilli7970 \cf3 https://www.war.gov/Multimedia/Experience/Subterranean-Challenge/\
+
+\f0\fs19\fsmilli9963 \cf2 2 of 5
+\fs24 \cf0 \page 
+\fs19\fsmilli9963 \cf2 AER1516: Robot Motion Planning Assignment #3: Autonomous Frontier-Based Exploration\
+
+\fs23\fsmilli11955 Your Assignment Tasks\
+
+\fs19\fsmilli9963 Your work is contained entirely in the file 
+\f1 exploration.py
+\f0 . The file has clearly marked 
+\f1 TODO 
+\f0 sections for\
+each part. The framework calls your functions automatically\'97you only need to fill in the logic.\
+1. Frontier Detection and Clustering (12 points)\
+Replace the random frontier detector with a proper implementation. A frontier cell is a free cell that has\
+at least one unknown 4-neighbor (up, down, left, right). Your implementation should:\
+\'95 Scan the occupancy grid and identify all frontier cells.\
+\'95 Cluster frontier cells into contiguous frontier regions using BFS (flood-fill) with 4-connectivity. Each\
+cluster represents a connected segment of the exploration boundary.\
+\'95 Filter out regions with fewer than 
+\f1 FRONTIER_MIN_SIZE 
+\f0 cells (defined in 
+\f1 config.py
+\f0 , default 3).\
+These tiny clusters are noise and should be discarded.\
+\'95 Return a list of 
+\f1 FrontierRegion 
+\f0 objects, each containing the cluster cells, centroid, and size.\
+Use the function template 
+\f1 detect_frontiers() 
+\f0 in 
+\f1 exploration.py
+\f0 . Guidance comments and a\
+scaffolded structure are provided in the file.\
+2. Goal Selection Strategies (16 points total)\
+Implement two goal selection strategies to replace the random baseline.\
+Part 2a: Nearest Frontier (10 points) \'97 Select the closest reachable frontier cell by path cost. For\
+each frontier region whose centroid is not blacklisted, plan a path from the robot\'92s current position to\
+the centroid and choose the goal with the minimum path cost. If a centroid falls on a non-free cell\
+(e.g., a wall), snap it to the nearest free cell. Use the function template 
+\f1 select_goal_nearest()\
+
+\f0 in 
+\f1 exploration.py
+\f0 .\
+Hint: Convert the robot\'92s world-coordinate position (
+\f1 state.robot_x
+\f0 , 
+\f1 state.robot_y
+\f0 ) to grid coor-\
+dinates using 
+\f1 CELL_SIZE
+\f0 . Remember that row corresponds to y and column corresponds to x.\
+Part 2b: Custom Strategy (6 points) \'97 Design and implement your own goal selection strategy that\
+outperforms the nearest-frontier strategy on at least one of the provided maps. Your strategy should\
+consider factors beyond pure distance. Some ideas to explore:\
+\'95 Cost-utility: maximize frontier_size/path_cost, preferring large, close frontiers over small, distant ones.\
+\'95 Information gain: estimate how much unknown area surrounds each frontier.\
+\'95 Dead-end avoidance: penalize frontiers deep in narrow corridors.\
+Use the function template 
+\f1 select_goal_custom() 
+\f0 in 
+\f1 exploration.py
+\f0 . Briefly describe your ap-\
+proach in a code comment.\
+3. Robust Exploration Loop (12 points)\
+Implement the main decision-making callback that the framework calls once per iteration. The random\
+baseline ignores many edge cases that arise during real exploration. Your implementation must handle:\
+\'95 Path validation: As the robot discovers new obstacles, a previously planned path may become blocked.\
+Validate the remaining path each iteration using 
+\f1 validate_path() 
+\f0 and clear it if invalid to trigger\
+replanning.\
+\'95 Goal selection and planning: When no valid path exists, call the goal selector to pick a frontier, then\
+plan a path to it using 
+\f1 plan_path()
+\f0 .\
+\'95 Blacklisting unreachable goals: If 
+\f1 plan_path() 
+\f0 returns 
+\f1 None 
+\f0 for a goal (no feasible path exists),\
+add the goal to 
+\f1 state.blacklisted_goals 
+\f0 and try another frontier.\
+3 of 5
+\fs24 \cf0 \page 
+\fs19\fsmilli9963 \cf2 AER1516: Robot Motion Planning Assignment #3: Autonomous Frontier-Based Exploration\
+\'95 Completion detection: When no reachable frontiers remain, set 
+\f1 state.exploration_complete\
+= True 
+\f0 to signal the framework to stop.\
+Use the function template 
+\f1 exploration_step() 
+\f0 in 
+\f1 exploration.py
+\f0 . When you find a valid path,\
+set 
+\f1 state.current_path 
+\f0 and 
+\f1 state.current_path_index = 1 
+\f0 (skip the start cell, which is the\
+robot\'92s current position). The framework then executes the path automatically.\
+Optional Bonus: A* Path Planning\
+The provided path planner in 
+\f1 planner.py 
+\f0 uses Dijkstra\'92s algorithm, which is correct but explores cells uni-\
+formly in all directions. For distant goals, Dijkstra wastes significant wall-clock time expanding unnecessary\
+cells. You can upgrade the planner to A* by adding an admissible heuristic (e.g., Euclidean distance to goal)\
+to the priority queue\'97the only change is replacing priority= g(n) with priority= g(n) + h(n). This does\
+not change path quality (A* finds the same optimal path as Dijkstra), but makes planning dramatically faster.\
+This upgrade is optional and not separately graded, but it is strongly recommended, as a slow planner eats\
+into your time budget. Use the function template 
+\f1 plan_path() 
+\f0 in 
+\f1 exploration.py
+\f0 .\
+
+\fs23\fsmilli11955 Report Requirements\
+
+\fs19\fsmilli9963 In addition to your code, submit a short PDF report (
+\f1 report.pdf
+\f0 ) worth 10 points. The report should\
+contain:\
+1. Coverage plots (5 points) \'97 For each of the three provided maps, plot coverage (%) versus time or step\
+count, comparing the random baseline, nearest-frontier, and your custom strategy. You can collect data\
+by running your implementation with different 
+\f1 --strategy 
+\f0 flags and recording the coverage history.\
+2. Discussion (5 points) \'97 Briefly discuss your findings. Why do certain strategies perform better on cer-\
+tain maps? Where does the greedy nearest-frontier approach struggle? What does your custom strategy\
+capture that nearest-frontier misses? Keep the discussion concise, a few paragraphs is sufficient.\
+
+\fs23\fsmilli11955 Getting Started\
+
+\fs19\fsmilli9963 Run the exploration with the random baseline to see the framework in action:\
+
+\f1 python run_exploration.py --map open_room --strategy random\
+
+\f0 Once you implement your strategies, test them with:\
+
+\f1 python run_exploration.py --map office --strategy nearest\
+
+\f0 Available options:\
+\'95 Maps: 
+\f1 open_room
+\f0 , 
+\f1 office
+\f0 , 
+\f1 cave\
+
+\f0 \'95 Strategies: 
+\f1 random 
+\f0 (baseline), 
+\f1 nearest 
+\f0 (your Part 2a), 
+\f1 custom 
+\f0 (your Part 2b)\
+\'95 Visualization speed: 
+\f1 --speed 0.01 
+\f0 (fast) or 
+\f1 --speed 0.1 
+\f0 (slow)\
+\'95 No visualization: 
+\f1 --no-vis 
+\f0 (useful for collecting timing data)\
+\'95 Reproducibility: 
+\f1 --seed 42 
+\f0 (fix the random seed)\
+A validation script is included. Run 
+\f1 python validate_submission.py 
+\f0 to check that your 
+\f1 exploration.py\
+
+\f0 file imports correctly, has all required functions, and passes basic sanity checks. The code scripts are self-\
+explanatory, so we encourage you to read through them to understand exactly what is being checked.\
+4 of 5
+\fs24 \cf0 \page 
+\fs19\fsmilli9963 \cf2 AER1516: Robot Motion Planning Assignment #3: Autonomous Frontier-Based Exploration\
+
+\fs23\fsmilli11955 Submission and Grading\
+
+\fs19\fsmilli9963 You must write your own code using Python 3.10 (or later) and NumPy 1.18.0 (or later). If your code does\
+not run, we will be unable to test it. To submit your code, put it in a 
+\f1 .tar 
+\f0 file with this command:\
+
+\f1 tar cvf handin.tar exploration.py report.pdf\
+
+\f0 You may then upload your 
+\f1 .tar 
+\f0 file through Quercus. Note that only the above two files should be in-\
+cluded in the archive. Do not modify or include any framework files (
+\f1 planner.py
+\f0 , 
+\f1 simulator.py
+\f0 ,\
+
+\f1 run_exploration.py
+\f0 , etc.)\'97we will use our own copies of these during grading.\
+Grading Breakdown\
+Component Points Method\
+Frontier detection and clustering 12 Auto\
+Goal selection: nearest frontier 10 Auto\
+Goal selection: custom strategy 6 Auto\
+Robust exploration loop 12 Auto\
+Code subtotal 40 Auto\
+Report: coverage plots and discussion 10 Manual\
+Total 50\
+Automated Testing\
+We will run a variety of automated tests to check the operation of your code. Each map has a wall-clock time\
+limit a minimum coverage threshold for the nearest-frontier strategy, shown below. Your exploration must\
+achieve at least the listed coverage within these limits.\
+Map Time Limit Min. Coverage (Nearest)\
+open_room 30 s 75%\
+office 60 s 60%\
+cave 60 s 55%\
+For the custom strategy (Part 2b), your implementation must achieve higher coverage than the nearest-frontier\
+strategy on at least one of the provided maps.\
+Passing all checks in the validation script is necessary but not sufficient for full marks \'97the automated\
+grading system uses additional test cases, including one more additional map not provided in the starter code,\
+to ensure your implementation generalizes. Do not hard-code behavior for specific maps.\
+Grading criteria also include: correctness and succinctness of the implementation of your functions, proper\
+overall program operation, and code commenting. Code that is not properly commented or that looks like\
+\'91spaghetti\'92 may result in an overall deduction of up to 10%.\
+5 of 5}
