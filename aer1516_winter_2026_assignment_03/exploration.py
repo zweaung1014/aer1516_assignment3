@@ -161,10 +161,19 @@ def detect_frontiers(occ_grid):
     # shifted arrays for efficiency.
     frontier_cells = set()
     # 4-neighbor offsets: up, down, left, right
-    # neighbor_offsets = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    neighbor_offsets = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     # TODO: for each cell (r, c) in the grid, check if it is FREE and
     #       if any of its 4-neighbors is UNKNOWN. If so, add (r, c)
     #       to frontier_cells.
+    for r in range(H):
+        for c in range(W):
+            if grid[r, c] != FREE:
+                continue
+            for dr, dc in neighbor_offsets:
+                nr, nc = r + dr, c + dc
+                if occ_grid.is_unknown(nr, nc):
+                    frontier_cells.add((r, c))
+                    break  # one unknown neighbor is enough
 
 
     # Step 2: Cluster frontier cells into contiguous regions using BFS.
@@ -178,6 +187,23 @@ def detect_frontiers(occ_grid):
     #       - collect all connected frontier cells into a cluster list
     #       - mark each visited cell in the visited set
     #       - append the cluster to clusters
+    for cell in frontier_cells:
+        if cell in visited:
+            continue
+        # BFS flood-fill from this frontier cell
+        queue = deque([cell])
+        visited.add(cell)
+        cluster = [cell]
+        while queue:
+            r, c = queue.popleft()
+            for dr, dc in neighbor_offsets:
+                nr, nc = r + dr, c + dc
+                neighbor = (nr, nc)
+                if neighbor in frontier_cells and neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+                    cluster.append(neighbor)
+        clusters.append(cluster)
 
 
     # Step 3: Filter and return.
@@ -185,11 +211,40 @@ def detect_frontiers(occ_grid):
     # Wrap each valid cluster in a FrontierRegion object.
     # TODO: return [FrontierRegion(cluster) for cluster in clusters
     #               if len(cluster) >= FRONTIER_MIN_SIZE]
-
-    # STUB (remove this line when you implement the above):
-    return detect_frontiers_random(occ_grid)
+    return [FrontierRegion(cluster) for cluster in clusters
+            if len(cluster) >= FRONTIER_MIN_SIZE]
 
     # ---- END YOUR CODE (Part 1) ----
+
+
+# =============================================================================
+# Helper: snap a grid cell to the nearest FREE cell via BFS
+# =============================================================================
+
+def _snap_to_free(occ_grid, rc, max_radius=50):
+    """BFS outward from rc to find the nearest FREE cell. Returns (row, col) or None."""
+    r0, c0 = rc
+    if occ_grid.is_free(r0, c0):
+        return rc
+    visited = {rc}
+    queue = deque([rc])
+    offsets = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    while queue:
+        r, c = queue.popleft()
+        for dr, dc in offsets:
+            nr, nc = r + dr, c + dc
+            if (nr, nc) in visited:
+                continue
+            visited.add((nr, nc))
+            if not occ_grid.is_in_bounds(nr, nc):
+                continue
+            # Stop expanding if we've gone too far from the original cell
+            if abs(nr - r0) + abs(nc - c0) > max_radius:
+                continue
+            if occ_grid.is_free(nr, nc):
+                return (nr, nc)
+            queue.append((nr, nc))
+    return None
 
 
 # =============================================================================
@@ -224,8 +279,8 @@ def select_goal_nearest(frontier_regions, occ_grid, state):
 
     # TODO: Convert robot's world position (meters) to grid coordinates.
     # Recall: row corresponds to y, col corresponds to x.
-    robot_row = None # update this
-    robot_col = None # update this
+    robot_row = int(state.robot_y / CELL_SIZE)
+    robot_col = int(state.robot_x / CELL_SIZE)
     robot_rc = (robot_row, robot_col)
 
     # Find the nearest reachable frontier.
@@ -243,10 +298,19 @@ def select_goal_nearest(frontier_regions, occ_grid, state):
         # on a wall if the cluster wraps around an obstacle). If so, you
         # may need to snap it to the nearest FREE cell using a small BFS
         # search outward from the centroid.
+        # Snap centroid to nearest FREE cell if it is not free.
+        if not occ_grid.is_free(goal[0], goal[1]):
+            goal = _snap_to_free(occ_grid, goal)
+            if goal is None:
+                continue
 
         # TODO: plan a path from robot_rc to goal using plan_path().
         # If a valid path is found and its cost is less than best_cost,
         # update best_goal and best_cost.
+        path, cost = plan_path(occ_grid, robot_rc, goal)
+        if path is not None and cost < best_cost:
+            best_goal = goal
+            best_cost = cost
 
     return best_goal
 
@@ -292,10 +356,60 @@ def select_goal_custom(frontier_regions, occ_grid, state):
     # state.robot_x/y, state.blacklisted_goals, occ_grid, etc.
     #
     # Describe your strategy briefly:
-    # Strategy: TODO
+    # Strategy: Cost-utility with information gain. For each frontier, compute
+    # score = frontier_size * nearby_unknown_count / path_cost. This prefers
+    # large frontiers near dense unexplored areas over small, close ones,
+    # avoiding the greedy trap of chasing tiny frontier fragments.
 
-    # STUB (remove when you implement):
-    return None
+    if not frontier_regions:
+        return None
+
+    # Convert robot world position to grid coordinates.
+    robot_row = int(state.robot_y / CELL_SIZE)
+    robot_col = int(state.robot_x / CELL_SIZE)
+    robot_rc = (robot_row, robot_col)
+
+    grid = occ_grid.grid
+    H, W = grid.shape
+    # Sensor range in cells (~3m / 0.25m = 12 cells)
+    INFO_RADIUS = 12
+
+    best_goal = None
+    best_score = -float('inf')
+
+    for fr in frontier_regions:
+        if fr.centroid in state.blacklisted_goals:
+            continue
+
+        goal = fr.centroid
+
+        # Snap centroid to nearest FREE cell if needed.
+        if not occ_grid.is_free(goal[0], goal[1]):
+            goal = _snap_to_free(occ_grid, goal)
+            if goal is None:
+                continue
+
+        # Plan path to this frontier.
+        path, cost = plan_path(occ_grid, robot_rc, goal)
+        if path is None or cost <= 0:
+            continue
+
+        # Estimate information gain: count UNKNOWN cells in a window around
+        # the centroid, approximating what the sensor would reveal there.
+        cr, cc = fr.centroid
+        r_lo = max(0, cr - INFO_RADIUS)
+        r_hi = min(H, cr + INFO_RADIUS + 1)
+        c_lo = max(0, cc - INFO_RADIUS)
+        c_hi = min(W, cc + INFO_RADIUS + 1)
+        unknown_count = int(np.sum(grid[r_lo:r_hi, c_lo:c_hi] == UNKNOWN))
+
+        # Score: utility (size * info gain) divided by travel cost.
+        score = fr.size * unknown_count / cost
+        if score > best_score:
+            best_score = score
+            best_goal = goal
+
+    return best_goal
 
     # ---- END YOUR CODE (Part 2b) ----
 
@@ -349,7 +463,8 @@ def exploration_step(state, occ_grid, env, frontier_regions, goal_selector):
         # TODO: use validate_path(occ_grid, remaining) to check the path.
         # If it returns False, set state.current_path = None to trigger
         # replanning below.
-        pass
+        if not validate_path(occ_grid, remaining):
+            state.current_path = None
 
     # Step 2: If we still have a valid path, let the framework execute it.
     if state.current_path is not None:
@@ -378,6 +493,20 @@ def exploration_step(state, occ_grid, env, frontier_regions, goal_selector):
     #
     # If no frontier is reachable after trying all options:
     #   state.exploration_complete = True
-    pass
+    while True:
+        goal = goal_selector(frontier_regions, occ_grid, state)
+        if goal is None:
+            # No more reachable frontiers available.
+            state.exploration_complete = True
+            return
+
+        path, cost = plan_path(occ_grid, robot_rc, goal)
+        if path is not None:
+            state.current_path = path
+            state.current_path_index = 1
+            return
+        else:
+            # Goal is unreachable — blacklist and retry.
+            state.blacklisted_goals.add(goal)
 
     # ---- END YOUR CODE (Part 3) ----
