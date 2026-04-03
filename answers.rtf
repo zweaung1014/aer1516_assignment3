@@ -1,0 +1,29 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2868
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 HelveticaNeue;\f1\froman\fcharset0 Times-Roman;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red45\green45\blue45;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\cssrgb\c23137\c23137\c23137;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\sa320\partightenfactor0
+
+\f0\fs26 \cf0 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 All three strategies eventually achieve high coverage on the open_room and office maps, but they differ dramatically in efficiency. The random baseline requires 171\'96530 steps to converge because it selects arbitrary free cells rather than true frontier boundaries, frequently revisiting already-explored areas. The nearest-frontier and custom strategies, by contrast, target the actual exploration boundary and converge in 118\'96175 steps \'97 roughly 2\'964x fewer iterations.\
+The greedy nearest-frontier approach performs well on open_room and office because these maps have relatively uniform frontier distributions. In open_room, frontiers are spread evenly around pillars and walls, so the closest frontier is usually a reasonable choice. In office, the room-to-room structure means the robot naturally sweeps through connected rooms in order of proximity. However, nearest-frontier struggles on the cave map (90.3% coverage), where narrow, branching passages create many small frontier fragments near the robot while larger unexplored regions lie further away. The greedy strategy wastes steps chasing tiny nearby fragments at corridor edges instead of committing to the larger passages that would reveal substantially more area.\
+\pard\pardeftab720\partightenfactor0
+\cf0 The custom strategy addresses this by scoring each frontier with a cost-utility metric:\'a0{\field{\*\fldinst{HYPERLINK "vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/code/electron-browser/workbench/workbench.html"}}{\fldrslt 
+\fs24 frontier_size \'d7 nearby_unknown_count / path_cost}}. This balances travel cost against expected information gain. On the cave map, this produces a clear improvement (94.1% vs 90.3%) because the strategy recognizes that a slightly more distant frontier adjacent to a large unexplored region is worth the extra travel cost. In effect, it avoids the "penny-wise, pound-foolish" behavior of nearest-frontier, where the robot repeatedly selects the cheapest goal without considering how much new information it will reveal. On the simpler maps, this added complexity provides no benefit \'97 when all frontiers are roughly equally informative, minimizing distance is already near-optimal.\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\partightenfactor0
+\ls1\ilvl0\cf3 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 \
+\ls1\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 \
+\ls1\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 \
+\ls1\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec3 \
+\pard\pardeftab720\partightenfactor0
+
+\f1\fs24 \cf0 \strokec2 \
+}
