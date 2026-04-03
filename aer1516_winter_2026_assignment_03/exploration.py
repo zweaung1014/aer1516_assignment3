@@ -120,7 +120,84 @@ def plan_path(occ_grid, start_rc, goal_rc):
     # ---- START YOUR CODE (Optional Bonus) ----
 
     # STUB: Calls the framework's Dijkstra planner (correct but slow)
-    return _plan_path_dijkstra(occ_grid, start_rc, goal_rc)
+    # Upgraded to A* with Euclidean heuristic for faster planning.
+    blocked = inflate_grid(occ_grid)
+    H, W = occ_grid.grid.shape
+
+    sr, sc = start_rc
+    gr, gc = goal_rc
+
+    # Bounds and FREE-cell checks (same as Dijkstra planner)
+    if not (0 <= sr < H and 0 <= sc < W):
+        return None, None
+    if not (0 <= gr < H and 0 <= gc < W):
+        return None, None
+    if occ_grid.grid[sr, sc] != FREE:
+        return None, None
+    if occ_grid.grid[gr, gc] != FREE:
+        return None, None
+
+    # Allow start and goal even if in inflation zone
+    blocked[sr, sc] = False
+    blocked[gr, gc] = False
+
+    # 8-connected neighbors
+    if CONNECTIVITY == 8:
+        neighbors = [(-1, -1), (-1, 0), (-1, 1),
+                     (0, -1),           (0, 1),
+                     (1, -1),  (1, 0),  (1, 1)]
+    else:
+        neighbors = [(-1, 0), (0, -1), (0, 1), (1, 0)]
+
+    SQRT2 = math.sqrt(2)
+
+    # Admissible heuristic: Euclidean distance to goal
+    def h(r, c):
+        return math.sqrt((r - gr) ** 2 + (c - gc) ** 2)
+
+    # A*: priority queue ordered by f = g + h (Dijkstra uses g only)
+    f0 = h(sr, sc)
+    open_set = [(f0, 0.0, sr, sc)]  # (f_cost, g_cost, row, col)
+    g_cost = {(sr, sc): 0.0}
+    came_from = {}
+    closed = set()
+
+    while open_set:
+        f, g, r, c = heapq.heappop(open_set)
+
+        if (r, c) == (gr, gc):
+            # Reconstruct path
+            path = [(r, c)]
+            while (r, c) in came_from:
+                r, c = came_from[(r, c)]
+                path.append((r, c))
+            path.reverse()
+            return path, g
+
+        if (r, c) in closed:
+            continue
+        closed.add((r, c))
+
+        for dr, dc in neighbors:
+            nr, nc = r + dr, c + dc
+            if not (0 <= nr < H and 0 <= nc < W):
+                continue
+            if blocked[nr, nc]:
+                continue
+            if (nr, nc) in closed:
+                continue
+
+            # Movement cost: sqrt(2) for diagonal, 1.0 for cardinal
+            step_cost = SQRT2 if (dr != 0 and dc != 0) else 1.0
+            new_g = g + step_cost
+
+            if new_g < g_cost.get((nr, nc), float('inf')):
+                g_cost[(nr, nc)] = new_g
+                came_from[(nr, nc)] = (r, c)
+                new_f = new_g + h(nr, nc)
+                heapq.heappush(open_set, (new_f, new_g, nr, nc))
+
+    return None, None
 
     # ---- END YOUR CODE (Optional Bonus) ----
 
@@ -356,7 +433,7 @@ def select_goal_custom(frontier_regions, occ_grid, state):
     # state.robot_x/y, state.blacklisted_goals, occ_grid, etc.
     #
     # Describe your strategy briefly:
-    # Strategy: Cost-utility with information gain. For each frontier, compute
+    # Strategy: For each frontier, I compute:
     # score = frontier_size * nearby_unknown_count / path_cost. This prefers
     # large frontiers near dense unexplored areas over small, close ones,
     # avoiding the greedy trap of chasing tiny frontier fragments.
